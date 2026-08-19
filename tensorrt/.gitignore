@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+# apm-deployed skills (--target claude / --target opencode)
+.claude/
+.agents/
+# Skill-run artifacts (the /tensorrt skill generates these per module)
+configs/
+# TensorRT / AcuiRT build artifacts
+*.engine
+*.trt
+*.onnx
+engines/
+report*.json

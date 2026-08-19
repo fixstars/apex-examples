@@ -1,0 +1,19 @@
+*.o
+bench
+build/
+build-aarch64/
+build-x86_64/
+
+.apex-work/
+
+.env
+
+# デモ用に無視する
+.claude/
+.agents/
+.opencode/plugins
+
+# apm.lock.yamlは.gitignoreすべきではないがデモ用に無視
+apm.lock.yaml
+
+apm_modules/
