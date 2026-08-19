@@ -1,0 +1,4 @@
+*.nsys-rep
+*.sqlite
+nsys_out
+.claude

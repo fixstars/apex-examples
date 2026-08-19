@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+.venv/
+
+# APEX / apm working dirs
+apm_modules/
+.apex-work/
+
+# profiling output
+perf-investigation/
+prof/
+
+# build output
+build*/
