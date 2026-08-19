@@ -1,0 +1,6 @@
+saxpy
+*.nsys-rep
+*.sqlite
+prof/
+.claude
+nsys_out
